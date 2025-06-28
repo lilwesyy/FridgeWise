@@ -1,0 +1,582 @@
+# Recipe Optimizer - Development Specifications
+
+## Project Overview
+**App Name:** FridgeWise  
+**Language:** English (Global Market)  
+**Stack:** Node.js + MongoDB + Vue.js  
+**Deployment:** Full Docker containerization  
+**Timeline:** 7-10 days MVP  
+**Target:** Quick market validation with premium monetization
+
+## Core Features (MVP)
+
+### 1. Photo Recognition & Ingredient Detection
+- Upload fridge/pantry photos via camera or file upload
+- AI ingredient recognition using OpenAI Vision API
+- Editable ingredient list (add/remove/modify)
+- Image storage on Cloudinary
+
+### 2. Recipe Suggestions
+- Algorithm matching available ingredients → recipes
+- Recipe database with required/optional ingredients
+- "Match percentage" rating based on available ingredients
+- Filters: prep time, difficulty level, cuisine type
+
+### 3. Nutritional Calculator
+- Automatic nutritional value calculation per serving
+- API integration (Spoonacular/USDA FoodData Central)
+- Display: calories, macros (protein/carbs/fats), essential micronutrients
+- Daily/weekly nutritional aggregation
+
+### 4. User Management
+- Registration/login with JWT
+- User profile with dietary preferences
+- History storage for photos and generated recipes
+- Usage limits for free vs premium tiers
+
+## Technical Architecture
+
+### Backend Services (Node.js + Express)
+
+#### API Endpoints Structure
+```
+/api/auth
+  POST /register
+  POST /login
+  GET  /profile
+  PUT  /profile
+
+/api/ingredients
+  POST /detect-from-image
+  GET  /search
+  POST /custom-add
+
+/api/recipes
+  POST /suggest
+  GET  /details/:id
+  POST /save-favorite
+  GET  /favorites
+
+/api/nutrition
+  GET  /calculate/:recipeId
+  GET  /daily-summary
+
+/api/uploads
+  POST /image
+```
+
+#### Core Modules
+- **Auth Service:** JWT token management
+- **Image Processing:** Cloudinary integration + OpenAI Vision
+- **Recipe Matcher:** Algorithm per matching ingredienti
+- **Nutrition Calculator:** API calls + caching results
+- **Database Layer:** MongoDB models e queries
+
+### Frontend Application (Vue.js 3)
+
+#### Component Structure
+```
+src/
+├── components/
+│   ├── Camera/
+│   │   ├── PhotoCapture.vue
+│   │   └── ImageUpload.vue
+│   ├── Ingredients/
+│   │   ├── IngredientsList.vue
+│   │   └── IngredientEditor.vue
+│   ├── Recipes/
+│   │   ├── RecipeCard.vue
+│   │   ├── RecipeDetails.vue
+│   │   └── RecipeFilters.vue
+│   ├── Nutrition/
+│   │   ├── NutritionPanel.vue
+│   │   └── DailySummary.vue
+│   └── Auth/
+│       ├── LoginForm.vue
+│       └── RegisterForm.vue
+├── views/
+│   ├── Home.vue
+│   ├── Dashboard.vue
+│   ├── Profile.vue
+│   └── Premium.vue
+└── stores/
+    ├── auth.js
+    ├── ingredients.js
+    └── recipes.js
+```
+
+#### Key Features
+- Progressive Web App (PWA) capabilities
+- Responsive design (mobile-first)
+- Camera access per foto real-time
+- Offline caching per ricette salvate
+- Push notifications per meal planning
+
+### Database Schema (MongoDB)
+
+#### Collections Design
+```javascript
+// Users Collection
+{
+  _id: ObjectId,
+  email: String,
+  password: String (hashed),
+  profile: {
+    name: String,
+    dietaryPreferences: [String], // vegetarian, vegan, gluten-free, etc.
+    allergies: [String],
+    calorieGoal: Number,
+    activityLevel: String
+  },
+  subscription: {
+    tier: String, // free, premium
+    validUntil: Date,
+    usageCount: Number // monthly reset
+  },
+  createdAt: Date,
+  updatedAt: Date
+}
+
+// Ingredients Collection
+{
+  _id: ObjectId,
+  name: String,
+  category: String,
+  nutritionPer100g: {
+    calories: Number,
+    protein: Number,
+    carbs: Number,
+    fat: Number,
+    fiber: Number
+  },
+  commonNames: [String], // per AI recognition
+  shelfLife: Number, // giorni
+  storageType: String // fridge, pantry, freezer
+}
+
+// Recipes Collection
+{
+  _id: ObjectId,
+  title: String,
+  description: String,
+  ingredients: [{
+    ingredientId: ObjectId,
+    quantity: Number,
+    unit: String,
+    required: Boolean
+  }],
+  instructions: [String],
+  prepTime: Number, // minuti
+  cookTime: Number,
+  servings: Number,
+  difficulty: String, // easy, medium, hard
+  cuisine: String,
+  tags: [String],
+  nutrition: {
+    perServing: {
+      calories: Number,
+      protein: Number,
+      carbs: Number,
+      fat: Number
+    }
+  },
+  rating: Number,
+  createdAt: Date
+}
+
+// User Sessions Collection
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  imageUrl: String,
+  detectedIngredients: [String],
+  suggestedRecipes: [ObjectId],
+  createdAt: Date
+}
+```
+
+## Docker Configuration
+
+### Multi-Container Setup
+```yaml
+# docker-compose.yml structure
+services:
+  - mongodb: Official mongo image
+  - backend: Node.js API server
+  - frontend: Nginx serving Vue.js build
+  - nginx: Reverse proxy
+  - redis: Caching layer (optional)
+```
+
+### Environment Configuration
+```
+Development: docker-compose.dev.yml
+Production: docker-compose.prod.yml
+Testing: docker-compose.test.yml
+```
+
+### Volume Management
+- MongoDB data persistence
+- Uploaded images storage
+- Logs aggregation
+- SSL certificates (production)
+
+## External Integrations
+
+### Required APIs
+1. **OpenAI Vision API**
+   - Ingredient recognition from photos
+   - Rate limits: gestire con caching intelligente
+   - Fallback: manual ingredient input
+
+2. **Nutrition API** (Spoonacular/USDA)
+   - Nutritional data per ingredienti
+   - Caching obligatorio per cost optimization
+   - Fallback: database nutrizionale locale
+
+3. **Cloudinary**
+   - Image upload/optimization
+   - Automatic resizing per mobile
+   - CDN distribution
+
+4. **Stripe** (Phase 2)
+   - Subscription management
+   - Payment processing
+   - Webhook handling
+
+## Development Phases
+
+### Phase 1: Core MVP (Days 1-4)
+- [x] Docker environment setup
+- [x] Backend API basic structure
+- [x] MongoDB models
+- [x] Authentication system
+- [x] Image upload functionality
+- [x] Basic ingredient detection
+
+### Phase 2: Recipe Engine (Days 5-7)
+- [x] Recipe database seeding
+- [x] Matching algorithm implementation
+- [x] Frontend component development
+- [x] Recipe display and filtering
+- [x] Basic nutrition calculation
+
+### Phase 3: Polish & Deploy (Days 8-10)
+- [x] UI/UX refinements
+- [x] Error handling & validation
+- [x] Performance optimization
+- [x] Production Docker setup
+- [x] Testing & bug fixes
+
+### Phase 4: Monetization (Days 11-14)
+- [x] Premium features implementation
+- [x] Usage tracking & limits
+- [x] Stripe integration
+- [x] Analytics dashboard
+
+## Monetization Strategy
+
+### Free Tier Limits
+- 3 photo analyses per week
+- 10 recipe suggestions per month
+- Basic nutritional info
+- Standard recipe database
+
+### Premium Tier ($4.99/month)
+- Unlimited photo analyses
+- Advanced nutritional tracking
+- Meal planning calendar
+- Shopping list generation
+- Dietary goal tracking
+- Premium recipe collection
+- Nutrition history export
+
+### Revenue Projections
+- Target: 1000 users in first month
+- Conversion rate goal: 15% to premium
+- Monthly recurring revenue target: $750
+- Break-even: ~150 premium users
+
+## Performance & Scalability
+
+### Optimization Strategies
+- Redis caching for API responses
+- Image compression & CDN
+- Database indexing strategy
+- API rate limiting
+- Lazy loading for frontend
+
+### Monitoring & Analytics
+- User behavior tracking
+- API performance metrics
+- Error logging & alerting
+- Conversion funnel analysis
+
+### Scaling Considerations
+- Horizontal backend scaling
+- Database sharding strategy
+- CDN geographic distribution
+- Load balancer configuration
+
+## Security Measures
+
+### Data Protection
+- JWT token security
+- Password hashing (bcrypt)
+- Input validation & sanitization
+- Rate limiting on sensitive endpoints
+- HTTPS enforcement
+
+### Privacy Compliance
+- GDPR compliance measures
+- User data deletion capabilities
+- Cookie consent management
+- Privacy policy implementation
+
+## Testing Strategy
+
+### Automated Testing
+- Unit tests for API endpoints
+- Integration tests for AI services
+- Frontend component testing
+- E2E testing with Cypress
+
+### Manual Testing
+- Cross-browser compatibility
+- Mobile responsiveness
+- AI accuracy validation
+- User experience testing
+
+## Deployment & DevOps
+
+### CI/CD Pipeline
+- GitHub Actions workflow
+- Automated testing on PR
+- Docker image building
+- Staging environment deployment
+
+### Production Infrastructure
+- DigitalOcean/AWS deployment
+- SSL certificate management
+- Database backups
+- Log aggregation
+- Health monitoring
+
+---
+
+# ANALISI E SUGGERIMENTI DI MIGLIORAMENTO
+
+## 🎯 Valutazione Generale
+Le specifiche sono **eccellenti** e mostrano una comprensione profonda del problema e una strategia di execution realistica. Il progetto ha un forte potenziale commerciale.
+
+## 💪 Punti di Forza
+
+### 1. Strategia di Prodotto Solida
+- **Value proposition chiaro**: Trasformare ingredienti disponibili in ricette concrete
+- **Market timing perfetto**: Il food waste è un problema sentito e l'AI è mainstream
+- **MVP ben definito**: Focus su funzionalità core senza feature creep
+- **Monetizzazione intelligente**: Freemium model bilanciato con pricing competitivo
+
+### 2. Architettura Tecnica Robusta
+- **Stack moderno e scalabile**: Node.js + MongoDB + Vue.js è una combinazione collaudata
+- **Microservizi ben strutturati**: Separazione chiara delle responsabilità
+- **Docker-first approach**: Ottimo per consistency tra ambienti
+- **Database schema ben progettato**: Relazioni chiare e scalabili
+
+### 3. Business Strategy
+- **Revenue model realistico**: $4.99/mese è accessibile e competitivo
+- **Premium features sensate**: Meal planning e tracking sono valore aggiunto reale
+- **Metriche di successo definite**: KPI chiari per validazione
+
+## ⚠️ Aree di Attenzione Critica
+
+### 1. Costi Operativi e Sostenibilità
+```
+Analisi costi API per 1000 utenti attivi/mese:
+- OpenAI Vision API: ~$200-400/mese (3-8 foto/utente)
+- Spoonacular API: ~$50-100/mese (caching aggressivo necessario)
+- Cloudinary: ~$50-80/mese
+- Totale: ~$300-580/mese
+
+Break-even reale: ~200-250 utenti premium (non 150)
+```
+
+**Raccomandazioni:**
+- Implementare **caching intelligente** per ridurre API calls del 60-70%
+- Considerare **API alternative** più economiche (es. USDA FoodData è gratuita)
+- **Pre-calcolare** nutrition data per ricette comuni
+
+### 2. AI Accuracy Challenge
+L'accuratezza del riconoscimento ingredienti sarà **critica** per l'UX e la retention.
+
+**Strategie di mitigazione:**
+- **Confidence scoring**: Mostrare livello di certezza per ogni ingrediente
+- **User feedback loop**: Permettere correzioni che migliorano il modello
+- **Fallback robusti**: Manual input come feature primaria, non secondaria
+- **Progressive enhancement**: Iniziare con categorie macro (verdure, carni, etc.)
+
+### 3. Timeline e Scope Creep
+7-10 giorni per MVP completo è **estremamente ambizioso** considerando:
+- Setup infrastruttura Docker multi-container
+- Integrazione multiple API con error handling
+- Frontend responsive + PWA
+- Testing cross-platform
+
+## 🚀 Suggerimenti di Miglioramento
+
+### 1. Feature Prioritization Rivista
+```
+PHASE 1 - CORE MVP (Week 1):
+✅ MUST HAVE:
+- Photo upload + basic ingredient detection
+- Simple recipe matching (exact ingredients only)
+- User auth + basic profile
+- Manual ingredient editing (as primary feature)
+
+🔄 MOVE TO PHASE 2:
+- Advanced nutrition tracking
+- PWA capabilities
+- Meal planning
+- Complex recipe algorithms
+
+⏳ PHASE 3:
+- Premium features
+- Analytics dashboard
+- Payment integration
+```
+
+### 2. Performance & UX Optimization
+
+#### Backend Performance
+```javascript
+// Esempio: Caching strategy per API calls
+const cacheConfig = {
+  nutrition: '24h',      // Nutrition data rarely changes
+  recipes: '1h',         // Recipe suggestions can be cached
+  images: 'permanent'    // Cloudinary URLs are stable
+}
+```
+
+#### Frontend UX
+- **Skeleton loading** per recipe suggestions
+- **Progressive image loading** con placeholder
+- **Offline-first** per ricette salvate
+- **Voice commands** per hands-free cooking
+
+### 3. Database Optimization
+
+#### Indexing Strategy
+```javascript
+// Indici critici per performance
+db.recipes.createIndex({ "ingredients.ingredientId": 1 })
+db.recipes.createIndex({ "prepTime": 1, "difficulty": 1 })
+db.ingredients.createIndex({ "commonNames": "text" })
+db.users.createIndex({ "subscription.tier": 1, "subscription.validUntil": 1 })
+```
+
+#### Schema Enhancements
+```javascript
+// Aggiungere per better matching
+recipes: {
+  // ...existing fields...
+  matchingScore: Number,           // Pre-calculated for popular ingredient combos
+  seasonality: [String],           // spring, summer, fall, winter
+  cookingMethod: [String],         // baking, frying, grilling, etc.
+  difficulty: {
+    level: String,
+    reasons: [String]              // "requires special equipment", "long prep time"
+  }
+}
+```
+
+## 💡 Opportunità di Crescita
+
+### 1. Community & Social Features
+- **Recipe sharing** tra utenti con rating system
+- **Social proof**: "1,234 persone hanno cucinato questa ricetta"
+- **Challenges**: "Zero waste week", "Vegetarian month"
+- **User-generated content**: Foto dei piatti preparati
+
+### 2. Advanced AI Features
+- **Seasonal suggestions**: Ingredienti di stagione e locali
+- **Smart expiry tracking**: Notifiche prima che gli ingredienti scadano
+- **Learning preferences**: Algoritmo che impara dai like/dislike
+- **Nutritional coaching**: Suggerimenti per raggiungere obiettivi dietetici
+
+### 3. Partnership & Revenue Streams
+- **Grocery delivery integration** (Instacart, Amazon Fresh)
+- **Kitchen equipment affiliate** (Amazon Associates)
+- **Food brand partnerships**: Sponsored ingredients/recipes
+- **Data insights**: Trend reports per food industry (B2B revenue)
+
+### 4. Mobile-First Enhancements
+- **Apple Health/Google Fit integration**
+- **Voice shopping lists**: "Add tomatoes to my shopping list"
+- **Apple Watch complications**: Quick recipe access
+- **Barcode scanning**: Per inventory management
+
+## 🔧 Implementazione Graduale
+
+### Settimana 1: Foundation
+```bash
+Day 1-2: Docker setup + basic backend API
+Day 3-4: Frontend shell + photo upload
+Day 5-7: Basic ingredient detection + manual editing
+```
+
+### Settimana 2: Core Features
+```bash
+Day 8-10: Recipe matching algorithm
+Day 11-12: Basic nutrition calculation
+Day 13-14: UI polish + basic testing
+```
+
+### Settimana 3: Enhancement
+```bash
+Day 15-17: Premium features
+Day 18-19: Payment integration
+Day 20-21: Production deployment
+```
+
+## 📊 KPI Aggiornati e Realistici
+
+### Metriche di Validazione (Mese 1)
+- **50+ utenti attivi** (ridotto da 100+ per essere realistico)
+- **5%+ photo-to-recipe conversion** (ridotto da 10%)
+- **8%+ freemium-to-premium conversion** (ridotto da 15%)
+- **<5s response time** (più conservativo)
+
+### Success Indicators
+- **User retention > 30%** dopo 7 giorni
+- **Average session > 3 minuti**
+- **Recipe completion rate > 15%** (utenti che effettivamente cucinano)
+
+## 🛡️ Risk Mitigation
+
+### Technical Risks
+- **API rate limits**: Implementare queue system per batch processing
+- **AI accuracy**: A/B test multiple prompting strategies
+- **Scalability**: Load testing con Docker Swarm/Kubernetes ready
+
+### Business Risks
+- **Market validation**: Deploy landing page per waitlist prima del development
+- **Competition**: Monitor apps simili (Supercook, BigOven, etc.)
+- **User acquisition**: Prepare social media strategy + influencer outreach
+
+## 🎯 Raccomandazioni Immediate
+
+1. **Start smaller**: Focus su photo→ingredients→basic recipes flow
+2. **Validate early**: Deploy prototipo in 5-7 giorni per user feedback
+3. **Monitor costs**: Dashboard per API usage da subito
+4. **Build community**: Create social media presence durante development
+
+---
+
+**Prossimi step suggeriti:**
+1. Setup ambiente Docker + repository structure
+2. Create landing page per early user feedback
+3. Develop basic photo upload + manual ingredient flow
+4. Test con 10-20 beta users prima di full development
+
+**Note finali:**
+Il progetto ha tutte le caratteristiche per essere un successo. La chiave sarà l'execution graduale e il focus sull'user experience piuttosto che su feature complesse.
