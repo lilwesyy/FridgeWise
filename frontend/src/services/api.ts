@@ -48,8 +48,13 @@ export const authAPI = {
 }
 
 export const ingredientsAPI = {
-  async getCategories(): Promise<APIResponse<{ categories: { name: string; count: number }[] }>> {
+  async getCategories(): Promise<APIResponse<{ name: string; count: number }[]>> {
     const response = await api.get('/ingredients/categories')
+    return response.data
+  },
+
+  async getTotalCount(): Promise<APIResponse<{ totalCount: number }>> {
+    const response = await api.get('/ingredients/total-count')
     return response.data
   },
 
@@ -109,6 +114,11 @@ export const recipesAPI = {
 
   async getSavedRecipes(): Promise<APIResponse<{ recipes: Recipe[] }>> {
     const response = await api.get('/recipes/saved')
+    return response.data
+  },
+
+  async saveRecipeWithData(recipeId: string, aiRecipe?: any): Promise<APIResponse<{ message: string; isFavorited: boolean; recipeId: string }>> {
+    const response = await api.post(`/recipes/${recipeId}/save`, aiRecipe ? { aiRecipe } : {})
     return response.data
   }
 }

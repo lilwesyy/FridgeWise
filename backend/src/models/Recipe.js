@@ -204,6 +204,11 @@ const recipeSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null
+  },
+  aiId: {
+    type: String,
+    default: null,
+    index: true
   }
 }, {
   timestamps: true,

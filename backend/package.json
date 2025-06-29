@@ -9,7 +9,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "db:optimize": "node scripts/create-indexes.js",
+    "db:indexes": "node scripts/create-indexes.js",
+    "cache:clear": "node -e \"const redis = require('redis'); const client = redis.createClient(); client.flushall().then(() => { console.log('Cache cleared'); client.quit(); });\"",
+    "cache:test": "node scripts/test-cache.js",
+    "performance:test": "npm run db:optimize && npm run cache:test"
   },
   "keywords": [
     "recipe",

@@ -14,7 +14,7 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://192.168.1.12:5000', // Punto all'IP della LAN per accesso esterno
         changeOrigin: true
       }
     }

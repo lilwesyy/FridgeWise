@@ -75,15 +75,24 @@ export const useRecipesStore = defineStore('recipes', () => {
     }
   }
 
-  const saveRecipe = async (recipeId: string) => {
+  const saveRecipe = async (recipeId: string, aiRecipe?: any) => {
     try {
-      const response = await recipesAPI.saveRecipe(recipeId)
+      let response
+      if (aiRecipe) {
+        // Use the new method for AI recipes
+        response = await recipesAPI.saveRecipeWithData(recipeId, aiRecipe)
+      } else {
+        // Use the standard method for regular recipes
+        response = await recipesAPI.saveRecipe(recipeId)
+      }
+      
       if (response.success) {
-        // Reload saved recipes
+        // Reload saved recipes to reflect the change
         await loadSavedRecipes()
+        return response.data
       }
     } catch (err: any) {
-      error.value = err.message
+      error.value = err.message || 'Failed to save recipe'
       throw err
     }
   }

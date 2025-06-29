@@ -10,6 +10,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const connectDB = require('./config/database');
+const { getRedisClient, closeRedisConnection } = require('./config/redis');
 const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -24,8 +25,15 @@ const donationRoutes = require('./routes/donation');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB
+// Connect to MongoDB and Redis
 connectDB();
+
+// Initialize Redis connection
+getRedisClient().then(() => {
+  logger.info('🔴 Redis connection initialized');
+}).catch(error => {
+  logger.warn('⚠️ Redis connection failed, continuing without cache:', error.message);
+});
 
 // Security middleware
 app.use(helmet());
@@ -84,13 +92,15 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  await closeRedisConnection();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  await closeRedisConnection();
   process.exit(0);
 });
 

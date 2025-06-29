@@ -24,7 +24,7 @@
               <h2 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
                 <svg class="w-7 h-7 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
                 {{ $t('ingredients.myIngredients') }} ({{ myIngredients.length }})
-                <span class="ml-2 text-xs text-purple-200 font-normal">/ {{ totalIngredientsCount }}</span>
+                <span class="ml-2 text-xs text-purple-200 font-normal">/ {{ totalCount }}</span>
               </h2>
               <button
                 v-if="myIngredients.length > 0"
@@ -224,7 +224,7 @@ const ingredientsStore = useIngredientsStore()
 const authStore = useAuthStore()
 const { locale } = useI18n()
 
-const { myIngredients, searchResults, categories, loading: ingredientsLoading, error } = storeToRefs(ingredientsStore)
+const { myIngredients, searchResults, categories, totalCount, loading: ingredientsLoading, error } = storeToRefs(ingredientsStore)
 const { canUseFeature } = authStore
 
 const fileInput = ref<HTMLInputElement>()
@@ -349,13 +349,6 @@ function selectSuggestion(suggestion: string) {
 
 onMounted(() => {
   ingredientsStore.loadCategories()
-})
-
-const totalIngredientsCount = computed(() => {
-  // If categories are loaded, sum their counts, else fallback to 0
-  if (categories.value && categories.value.length > 0) {
-    return categories.value.map(c => c.count).reduce((a, b) => a + b, 0)
-  }
-  return 0
+  ingredientsStore.loadTotalCount()
 })
 </script>

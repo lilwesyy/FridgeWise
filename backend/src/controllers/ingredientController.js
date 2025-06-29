@@ -295,7 +295,24 @@ const getCategories = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: { categories: categoriesWithCounts }
+      data: categoriesWithCounts
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get total count of ingredients
+// @route   GET /api/ingredients/total-count
+// @access  Public
+const getTotalCount = async (req, res, next) => {
+  try {
+    const totalCount = await Ingredient.countDocuments();
+
+    res.status(200).json({
+      success: true,
+      data: { totalCount }
     });
 
   } catch (error) {
@@ -354,5 +371,6 @@ module.exports = {
   addCustomIngredient,
   getIngredientById,
   getCategories,
+  getTotalCount,
   seedDatabase
 };

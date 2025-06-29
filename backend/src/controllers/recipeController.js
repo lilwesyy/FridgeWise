@@ -16,7 +16,8 @@ const suggestRecipes = async (req, res, next) => {
       tags,
       minMatchPercentage = 50,
       limit = 20,
-      page = 1
+      page = 1,
+      servings = 2
     } = req.body;
 
     if (!ingredients || ingredients.length === 0) {
@@ -26,72 +27,15 @@ const suggestRecipes = async (req, res, next) => {
       });
     }
 
-    // Find recipes that contain at least one of the provided ingredients
-    const recipes = await Recipe.findByIngredients(ingredients, {
-      cuisine,
-      difficulty,
-      maxPrepTime,
-      tags,
-      limit: parseInt(limit),
-      page: parseInt(page)
-    });
-
-    // Calculate match percentage for each recipe
-    const recipesWithMatch = recipes.map(recipe => {
-      const matchPercentage = recipe.calculateMatchPercentage(ingredients);
-      return {
-        ...recipe.toObject(),
-        matchPercentage
-      };
-    });
-
-    // Filter by minimum match percentage and sort
-    const filteredRecipes = recipesWithMatch
-      .filter(recipe => recipe.matchPercentage >= minMatchPercentage)
-      .sort((a, b) => {
-        // Sort by match percentage first, then by rating
-        if (b.matchPercentage !== a.matchPercentage) {
-          return b.matchPercentage - a.matchPercentage;
-        }
-        return b.rating.average - a.rating.average;
-      });
-
-    // Calculate missing ingredients for each recipe
-    const recipesWithMissingIngredients = await Promise.all(
-      filteredRecipes.map(async (recipe) => {
-        const availableIngredientIds = new Set(ingredients.map(id => id.toString()));
-        const missingIngredients = [];
-
-        for (const recipeIngredient of recipe.ingredients) {
-          if (!availableIngredientIds.has(recipeIngredient.ingredientId.toString())) {
-            const ingredient = await Ingredient.findById(recipeIngredient.ingredientId);
-            if (ingredient) {
-              missingIngredients.push({
-                ...ingredient.toObject(),
-                quantity: recipeIngredient.quantity,
-                unit: recipeIngredient.unit,
-                required: recipeIngredient.required
-              });
-            }
-          }
-        }
-
-        return {
-          ...recipe,
-          missingIngredients
-        };
-      })
-    );
-
-    // Se non ci sono ricette trovate, fallback su AI
-    if (recipesWithMissingIngredients.length === 0) {
+    // Genera sempre una ricetta AI
+    try {
       const aiRecipe = await generateRecipe(
         ingredients,
-        req.body.servings,
-        req.body.maxPrepTime,
-        req.body.difficulty
+        servings,
+        maxPrepTime,
+        difficulty
       );
-      // Create user session for AI recipe fallback
+      // Salva la sessione utente per tracciare la richiesta
       await UserSession.create({
         userId: req.user.id,
         detectedIngredients: ingredients,
@@ -123,43 +67,29 @@ const suggestRecipes = async (req, res, next) => {
           }
         }
       });
-    }
-
-    // Create user session to track this search
-    if (recipesWithMissingIngredients.length > 0) {
-      await UserSession.create({
-        userId: req.user.id,
-        detectedIngredients: ingredients,
-        suggestedRecipes: recipesWithMissingIngredients.map(r => r._id),
-        searchCriteria: {
-          cuisine,
-          difficulty,
-          maxPrepTime,
-          tags,
-          minMatchPercentage
+    } catch (aiError) {
+      console.error('AI recipe generation failed:', aiError.message);
+      // Fallback: return empty results with message
+      return res.status(200).json({
+        success: true,
+        data: {
+          recipes: [],
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: 0
+          },
+          filters: {
+            cuisine,
+            difficulty,
+            maxPrepTime,
+            tags,
+            minMatchPercentage
+          },
+          message: 'AI service is temporarily unavailable. Please try again later.'
         }
       });
     }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        recipes: recipesWithMissingIngredients,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: recipesWithMissingIngredients.length
-        },
-        filters: {
-          cuisine,
-          difficulty,
-          maxPrepTime,
-          tags,
-          minMatchPercentage
-        }
-      }
-    });
-
   } catch (error) {
     next(error);
   }
@@ -197,92 +127,139 @@ const saveFavorite = async (req, res, next) => {
   try {
     const User = require('../models/User');
     const Recipe = require('../models/Recipe');
+    const UserSession = require('../models/UserSession');
+    
     const user = await User.findById(req.user.id);
     const recipeId = req.params.id;
 
     let recipe = null;
-    // Se è una ricetta AI (id non ObjectId), gestisci prima
+
+    // Handle AI recipes (id starts with 'ai-')
     if (typeof recipeId === 'string' && recipeId.startsWith('ai-')) {
-      // Recupera le ultime sessioni dell'utente e cerca manualmente la ricetta AI
-      const sessions = await require('../models/UserSession').find({
-        userId: req.user.id
-      }).sort({ createdAt: -1 }).limit(10);
-      let session = null;
-      for (const s of sessions) {
-        if (s.aiRecipe && s.aiRecipe.id === recipeId) {
-          session = s;
-          break;
-        }
-      }
-      if (session && session.aiRecipe && session.aiRecipe.id === recipeId) {
-        // Check if a Recipe with this aiId already exists
-        let existingRecipe = await Recipe.findOne({ aiId: recipeId });
-        if (existingRecipe) {
-          recipe = existingRecipe;
-        } else {
-          const newRecipe = new Recipe({
-            ...session.aiRecipe,
-            _id: undefined,
+      // First check if this AI recipe is already saved in the database
+      recipe = await Recipe.findOne({ aiId: recipeId });
+      
+      if (!recipe) {
+        // Try to find the AI recipe in user sessions
+        const session = await UserSession.findOne({
+          userId: req.user.id,
+          'aiRecipe.id': recipeId
+        }).sort({ createdAt: -1 });
+
+        if (session && session.aiRecipe) {
+          // Create a new Recipe from the AI recipe data
+          const aiRecipeData = session.aiRecipe;
+          recipe = new Recipe({
+            title: aiRecipeData.title,
+            description: aiRecipeData.description,
+            ingredients: aiRecipeData.ingredients,
+            instructions: aiRecipeData.instructions.map((inst, index) => ({
+              step: index + 1,
+              instruction: inst
+            })),
+            prepTime: aiRecipeData.prepTime || 15,
+            cookTime: aiRecipeData.cookTime || aiRecipeData.cookingTime || 30,
+            servings: aiRecipeData.servings || 2,
+            difficulty: {
+              level: aiRecipeData.difficulty || 'medium',
+              reasons: []
+            },
+            cuisine: aiRecipeData.cuisine || 'international',
+            tags: aiRecipeData.tags || [],
+            nutrition: {
+              perServing: {
+                calories: aiRecipeData.nutritionInfo?.calories || 0,
+                protein: aiRecipeData.nutritionInfo?.protein || 0,
+                carbs: aiRecipeData.nutritionInfo?.carbs || 0,
+                fat: aiRecipeData.nutritionInfo?.fat || 0
+              }
+            },
             isVerified: false,
             source: 'ai',
             author: user._id,
-            aiId: recipeId // Store the AI id for deduplication
+            aiId: recipeId
           });
-          recipe = await newRecipe.save();
-        }
-      } else {
-        // Fallback: allow saving if full AI recipe is provided in the request body
-        const aiRecipeFromBody = req.body && req.body.aiRecipe;
-        if (aiRecipeFromBody && aiRecipeFromBody.id === recipeId) {
-          // Check for deduplication
-          let existingRecipe = await Recipe.findOne({ aiId: recipeId });
-          if (existingRecipe) {
-            recipe = existingRecipe;
-          } else {
-            const newRecipe = new Recipe({
-              ...aiRecipeFromBody,
-              _id: undefined,
-              isVerified: false,
-              source: 'ai',
-              author: user._id,
-              aiId: recipeId
-            });
-            recipe = await newRecipe.save();
-          }
-        } else {
-          return res.status(404).json({ success: false, error: 'AI recipe not found in session or request' });
+          
+          recipe = await recipe.save();
+        } else if (req.body.aiRecipe) {
+          // Fallback: use AI recipe data from request body
+          const aiRecipeData = req.body.aiRecipe;
+          recipe = new Recipe({
+            title: aiRecipeData.title,
+            description: aiRecipeData.description,
+            ingredients: aiRecipeData.ingredients,
+            instructions: aiRecipeData.instructions.map((inst, index) => ({
+              step: index + 1,
+              instruction: inst
+            })),
+            prepTime: aiRecipeData.prepTime || 15,
+            cookTime: aiRecipeData.cookTime || aiRecipeData.cookingTime || 30,
+            servings: aiRecipeData.servings || 2,
+            difficulty: {
+              level: aiRecipeData.difficulty || 'medium',
+              reasons: []
+            },
+            cuisine: aiRecipeData.cuisine || 'international',
+            tags: aiRecipeData.tags || [],
+            nutrition: {
+              perServing: {
+                calories: aiRecipeData.nutritionInfo?.calories || 0,
+                protein: aiRecipeData.nutritionInfo?.protein || 0,
+                carbs: aiRecipeData.nutritionInfo?.carbs || 0,
+                fat: aiRecipeData.nutritionInfo?.fat || 0
+              }
+            },
+            isVerified: false,
+            source: 'ai',
+            author: user._id,
+            aiId: recipeId
+          });
+          
+          recipe = await recipe.save();
         }
       }
     } else {
-      // Solo se è un ObjectId valido
+      // Handle regular recipes with ObjectId
       if (/^[a-f\d]{24}$/i.test(recipeId)) {
         recipe = await Recipe.findById(recipeId);
       }
     }
+
     if (!recipe) {
       return res.status(404).json({
         success: false,
         error: 'Recipe not found'
       });
     }
+
+    // Initialize favorites array if it doesn't exist
     if (!user.favorites) {
       user.favorites = [];
     }
-    const isFavorited = user.favorites.includes(recipe._id.toString());
+
+    const isFavorited = user.favorites.some(id => id.toString() === recipe._id.toString());
+    
     if (isFavorited) {
+      // Remove from favorites
       user.favorites = user.favorites.filter(id => id.toString() !== recipe._id.toString());
     } else {
+      // Add to favorites
       user.favorites.push(recipe._id);
     }
+
     await user.save();
+
     res.status(200).json({
       success: true,
       data: {
         isFavorited: !isFavorited,
+        recipeId: recipe._id,
         message: isFavorited ? 'Recipe removed from favorites' : 'Recipe added to favorites'
       }
     });
+
   } catch (error) {
+    console.error('Error in saveFavorite:', error);
     next(error);
   }
 };

@@ -253,10 +253,22 @@ const closeRecipeModal = () => {
 
 const saveRecipe = async (recipeId: string) => {
   try {
-    await recipesStore.saveRecipe(recipeId)
-    // Show success message
+    // Find the recipe in recommendations to check if it's an AI recipe
+    const recipe = recommendations.value.find(r => r._id === recipeId || r.id === recipeId)
+    
+    if (recipe && (recipeId.startsWith('ai-') || recipe.id?.startsWith('ai-'))) {
+      // This is an AI recipe, pass the full recipe data
+      await recipesStore.saveRecipe(recipeId, recipe)
+    } else {
+      // This is a regular recipe
+      await recipesStore.saveRecipe(recipeId)
+    }
+    
+    // Show success message (you can add a toast notification here)
+    console.log('Recipe saved successfully!')
   } catch (error) {
     console.error('Error saving recipe:', error)
+    // Show error message (you can add a toast notification here)
   }
 }
 

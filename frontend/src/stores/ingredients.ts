@@ -7,6 +7,7 @@ export const useIngredientsStore = defineStore('ingredients', () => {
   const myIngredients = ref<DetectedIngredient[]>([])
   const searchResults = ref<Ingredient[]>([])
   const categories = ref<{ name: string; count: number }[]>([])
+  const totalCount = ref<number>(0)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -14,7 +15,18 @@ export const useIngredientsStore = defineStore('ingredients', () => {
     try {
       const response = await ingredientsAPI.getCategories()
       if (response.success && response.data) {
-        categories.value = response.data.categories
+        categories.value = response.data
+      }
+    } catch (err: any) {
+      error.value = err.message
+    }
+  }
+
+  const loadTotalCount = async () => {
+    try {
+      const response = await ingredientsAPI.getTotalCount()
+      if (response.success && response.data) {
+        totalCount.value = response.data.totalCount
       }
     } catch (err: any) {
       error.value = err.message
@@ -76,9 +88,11 @@ export const useIngredientsStore = defineStore('ingredients', () => {
     myIngredients,
     searchResults,
     categories,
+    totalCount,
     loading,
     error,
     loadCategories,
+    loadTotalCount,
     searchIngredients,
     detectFromImage,
     addIngredient,
