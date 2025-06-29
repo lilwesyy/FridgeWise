@@ -150,6 +150,18 @@
     <main>
       <RouterView />
     </main>
+    <!-- Notification Toasts -->
+    <div class="toast-stack-container">
+      <NotificationToast
+        v-for="n in notifications"
+        :key="n.id"
+        :message="n.message"
+        :type="n.type"
+        :show="true"
+        :duration="n.duration"
+        @close="removeNotification(n.id)"
+      />
+    </div>
   </div>
 </template>
 
@@ -159,11 +171,14 @@ import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 import { onMounted, computed, watch, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import NotificationToast from '@/components/NotificationToast.vue'
+import { useNotifications } from '@/composables/useNotifications'
 
 const authStore = useAuthStore()
 const { user, isAuthenticated } = storeToRefs(authStore)
 const route = useRoute()
 const router = useRouter()
+const { notifications, removeNotification } = useNotifications()
 
 const mobileMenuOpen = ref(false)
 const isScrolledPastHeader = ref(false)

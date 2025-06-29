@@ -144,11 +144,22 @@
                       @input="debouncedSearch"
                       type="text"
                       :placeholder="$t('ingredients.searchPlaceholder')"
-                      class="w-full pl-11 pr-4 py-2 border border-purple-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white/80 text-gray-900 placeholder-gray-400 shadow-sm transition-all duration-200"
+                      class="w-full pl-11 pr-10 py-2 border border-purple-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white/80 text-gray-900 placeholder-gray-400 shadow-sm transition-all duration-200"
                     />
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400 pointer-events-none">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
                     </span>
+                    <!-- Clear button (X) -->
+                    <button
+                      v-if="searchQuery"
+                      @click="clearSearch"
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-600 transition-colors duration-200"
+                      type="button"
+                    >
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
                   </div>
                   <div class="relative w-full sm:w-48">
                     <select
@@ -180,7 +191,7 @@
                     </button>
                   </div>
                 </div>
-                <div v-if="searchResults.length > 0" class="max-h-56 overflow-y-auto mt-2 rounded-xl bg-white/40 p-2 border border-purple-100 shadow-inner">
+                <div v-if="searchResults.length > 0" class="max-h-80 sm:max-h-96 overflow-y-auto mt-2 rounded-xl bg-white/40 p-2 border border-purple-100 shadow-inner">
                   <div class="grid gap-2">
                     <div
                       v-for="ingredient in searchResults"
@@ -219,12 +230,15 @@ import { debounce } from '@/utils/debounce'
 import type { Ingredient } from '@/types'
 import { useI18n } from 'vue-i18n'
 import { ingredientTranslations } from '@/utils/ingredientTranslations'
+import { useNotifications } from '@/composables/useNotifications'
 
 const ingredientsStore = useIngredientsStore()
 const authStore = useAuthStore()
 const { locale } = useI18n()
+const { t } = useI18n()
+const { success, error, info } = useNotifications()
 
-const { myIngredients, searchResults, categories, totalCount, loading: ingredientsLoading, error } = storeToRefs(ingredientsStore)
+const { myIngredients, searchResults, categories, totalCount, loading: ingredientsLoading, error: storeError } = storeToRefs(ingredientsStore)
 const { canUseFeature } = authStore
 
 const fileInput = ref<HTMLInputElement>()
@@ -299,6 +313,11 @@ watch([searchQuery, selectedCategory], ([val, cat]) => {
 const debouncedSearch = debounce(performSearch, 300)
 
 const addSearchedIngredient = (ingredient: Ingredient) => {
+  // Check for duplicate
+  if (myIngredients.value.some(ing => ing.name.toLowerCase() === ingredient.name.toLowerCase())) {
+    error(t('ingredients.ingredientAdded') + ' (DUPLICATE)', 4000)
+    return
+  }
   ingredientsStore.addIngredient({
     name: ingredient.name,
     category: ingredient.category,
@@ -310,16 +329,19 @@ const addSearchedIngredient = (ingredient: Ingredient) => {
     storageType: ingredient.storageType,
     shelfLife: ingredient.shelfLife
   })
-  // Svuota i risultati subito dopo l'aggiunta
   ingredientsStore.searchResults.value = []
+  searchQuery.value = ''
+  success(t('ingredients.ingredientAdded'))
 }
 
 const removeIngredient = (name: string) => {
   ingredientsStore.removeIngredient(name)
+  error(t('ingredients.ingredientRemoved'))
 }
 
 const clearAllIngredients = () => {
   ingredientsStore.clearMyIngredients()
+  info(t('ingredients.ingredientsCleared'))
 }
 
 const formatIngredientName = (name: string) => {
@@ -345,6 +367,11 @@ const ingredientSuggestions = ref([
 function selectSuggestion(suggestion: string) {
   searchQuery.value = suggestion
   performSearch()
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  ingredientsStore.searchResults.value = []
 }
 
 onMounted(() => {

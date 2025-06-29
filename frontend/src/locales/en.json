@@ -115,6 +115,9 @@
     "searchPlaceholder": "Search for ingredients...",
     "allCategories": "All categories",
     "suggestions": "Suggestions:",
+    "ingredientAdded": "Ingredient added successfully!",
+    "ingredientRemoved": "Ingredient removed successfully!",
+    "ingredientsCleared": "All ingredients cleared!",
     "footer": "Made with ❤️ for food lovers"
   },
   "recipes": {

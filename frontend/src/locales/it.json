@@ -115,6 +115,9 @@
     "searchPlaceholder": "Cerca ingredienti...",
     "allCategories": "Tutte le categorie",
     "suggestions": "Suggerimenti:",
+    "ingredientAdded": "Ingrediente aggiunto con successo!",
+    "ingredientRemoved": "Ingrediente rimosso con successo!",
+    "ingredientsCleared": "Tutti gli ingredienti rimossi!",
     "footer": "Creato con ❤️ per chi ama il cibo"
   },
   "recipes": {
