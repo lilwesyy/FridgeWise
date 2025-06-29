@@ -87,6 +87,29 @@ onMounted(() => {
   opacity: 0;
 }
 
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .toast-item {
+    min-width: 280px;
+    max-width: calc(100vw - 2rem);
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    border-radius: 0.75rem;
+  }
+  
+  .toast-item .icon {
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.75rem;
+  }
+  
+  .toast-item .icon svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
 .toast-item.animate-in {
   animation: slideIn 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
@@ -140,13 +163,30 @@ onMounted(() => {
 /* Stacking container (in App.vue) */
 :global(.toast-stack-container) {
   position: fixed;
-  top: 1.5rem;
-  right: 1.5rem;
+  top: 1rem;
+  right: 1rem;
   z-index: 9999;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   pointer-events: none;
+}
+
+/* Mobile responsive for container */
+@media (max-width: 768px) {
+  :global(.toast-stack-container) {
+    top: 5rem; /* Below navbar on mobile */
+    right: 0.75rem;
+    left: 0.75rem;
+    align-items: center; /* Center the toast items */
+    width: auto; /* Let it size naturally */
+  }
+  
+  :global(.toast-stack-container) .toast-item {
+    min-width: auto;
+    max-width: none;
+    width: 100%; /* Full width of container */
+  }
 }
 
 .toast-item {
