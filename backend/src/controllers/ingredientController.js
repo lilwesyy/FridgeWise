@@ -1,6 +1,7 @@
 const OpenAI = require('openai');
 const Ingredient = require('../models/Ingredient');
 const logger = require('../utils/logger');
+const ollamaService = require('../services/ollamaService');
 
 // Initialize OpenAI only when needed
 const getOpenAIClient = () => {
@@ -12,12 +13,73 @@ const getOpenAIClient = () => {
   });
 };
 
-// @desc    Detect ingredients from image using OpenAI Vision
+// Helper function for OpenAI Vision detection
+const detectWithOpenAI = async (imageUrl, confidence) => {
+  const openai = getOpenAIClient();
+  
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Analyze this image and identify all visible food ingredients. Return a JSON array of objects with the following structure:
+            [
+              {
+                "name": "ingredient_name",
+                "confidence": 0.95,
+                "category": "vegetables|fruits|meat|poultry|seafood|dairy|grains|legumes|nuts-seeds|herbs-spices|oils-fats|condiments|pantry|beverages|other",
+                "quantity_estimate": "approximate amount visible",
+                "freshness": "fresh|good|questionable"
+              }
+            ]
+            Only include ingredients you can clearly identify with confidence >= ${confidence}. Use common ingredient names that people would search for in recipes.`
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: imageUrl
+            }
+          }
+        ]
+      }
+    ],
+    max_tokens: 1000
+  });
+
+  let detectedIngredients = [];
+  
+  try {
+    const content = response.choices[0].message.content;
+    const jsonMatch = content.match(/\[.*\]/s);
+    
+    if (jsonMatch) {
+      detectedIngredients = JSON.parse(jsonMatch[0]);
+    } else {
+      throw new Error('No valid JSON found in response');
+    }
+  } catch (parseError) {
+    logger.error('Error parsing OpenAI response:', parseError);
+    throw new Error('Failed to parse ingredient detection results');
+  }
+
+  return {
+    ingredients: detectedIngredients,
+    providerInfo: {
+      model: 'gpt-4o',
+      totalDetected: detectedIngredients.length
+    }
+  };
+};
+
+// @desc    Detect ingredients from image using AI (OpenAI Vision or Ollama)
 // @route   POST /api/ingredients/detect-from-image
 // @access  Private
 const detectFromImage = async (req, res, next) => {
   try {
-    const { imageUrl, confidence = 0.7 } = req.body;
+    const { imageUrl, confidence = 0.7, preferOllama = false } = req.body;
 
     if (!imageUrl) {
       return res.status(400).json({
@@ -26,60 +88,59 @@ const detectFromImage = async (req, res, next) => {
       });
     }
 
-    // Get OpenAI client
-    const openai = getOpenAIClient();
-
-    // OpenAI Vision API call
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this image and identify all visible food ingredients. Return a JSON array of objects with the following structure:
-              [
-                {
-                  "name": "ingredient_name",
-                  "confidence": 0.95,
-                  "category": "vegetables|fruits|meat|poultry|seafood|dairy|grains|legumes|nuts-seeds|herbs-spices|oils-fats|condiments|pantry|beverages|other",
-                  "quantity_estimate": "approximate amount visible",
-                  "freshness": "fresh|good|questionable"
-                }
-              ]
-              Only include ingredients you can clearly identify with confidence >= ${confidence}. Use common ingredient names that people would search for in recipes.`
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageUrl
-              }
-            }
-          ]
-        }
-      ],
-      max_tokens: 1000
-    });
-
     let detectedIngredients = [];
+    let aiProvider = '';
+    let providerInfo = {};
+
+    // Try Ollama first if preferred or if OpenAI is not available
+    const useOllama = preferOllama || !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('sk-placeholder');
     
-    try {
-      // Parse the JSON response
-      const content = response.choices[0].message.content;
-      const jsonMatch = content.match(/\[.*\]/s);
-      
-      if (jsonMatch) {
-        detectedIngredients = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No valid JSON found in response');
+    if (useOllama) {
+      try {
+        logger.info('Attempting ingredient detection with Ollama...');
+        const ollamaResult = await ollamaService.detectIngredientsFromImage(imageUrl, confidence);
+        detectedIngredients = ollamaResult.ingredients;
+        aiProvider = 'ollama';
+        providerInfo = {
+          model: ollamaResult.model,
+          totalDetected: ollamaResult.totalDetected
+        };
+        logger.info(`Ollama detection successful: ${detectedIngredients.length} ingredients found`);
+      } catch (ollamaError) {
+        logger.warn('Ollama detection failed:', ollamaError.message);
+        
+        // Fallback to OpenAI if Ollama fails
+        if (!preferOllama) {
+          logger.info('Falling back to OpenAI Vision...');
+          const openaiResult = await detectWithOpenAI(imageUrl, confidence);
+          detectedIngredients = openaiResult.ingredients;
+          aiProvider = 'openai';
+          providerInfo = openaiResult.providerInfo;
+        } else {
+          throw ollamaError; // If user prefers Ollama, don't fallback
+        }
       }
-    } catch (parseError) {
-      logger.error('Error parsing OpenAI response:', parseError);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to parse ingredient detection results'
-      });
+    } else {
+      try {
+        logger.info('Attempting ingredient detection with OpenAI Vision...');
+        const openaiResult = await detectWithOpenAI(imageUrl, confidence);
+        detectedIngredients = openaiResult.ingredients;
+        aiProvider = 'openai';
+        providerInfo = openaiResult.providerInfo;
+        logger.info(`OpenAI detection successful: ${detectedIngredients.length} ingredients found`);
+      } catch (openaiError) {
+        logger.warn('OpenAI detection failed:', openaiError.message);
+        
+        // Fallback to Ollama if OpenAI fails
+        logger.info('Falling back to Ollama...');
+        const ollamaResult = await ollamaService.detectIngredientsFromImage(imageUrl, confidence);
+        detectedIngredients = ollamaResult.ingredients;
+        aiProvider = 'ollama';
+        providerInfo = {
+          model: ollamaResult.model,
+          totalDetected: ollamaResult.totalDetected
+        };
+      }
     }
 
     // Match detected ingredients with database
@@ -114,7 +175,9 @@ const detectFromImage = async (req, res, next) => {
         totalDetected: detectedIngredients.length,
         matched: matchedIngredients,
         unknown: unknownIngredients,
-        imageUrl
+        imageUrl,
+        aiProvider,
+        providerInfo
       }
     });
 
@@ -365,6 +428,45 @@ const seedDatabase = async (req, res, next) => {
   }
 };
 
+// @desc    Check AI providers status
+// @route   GET /api/ingredients/ai-providers-status
+// @access  Private
+const getAIProvidersStatus = async (req, res, next) => {
+  try {
+    // Check OpenAI availability
+    let openaiStatus = {
+      available: false,
+      error: null
+    };
+    
+    try {
+      getOpenAIClient();
+      openaiStatus.available = true;
+    } catch (error) {
+      openaiStatus.error = error.message;
+    }
+
+    // Check Ollama availability
+    const ollamaStatus = await ollamaService.checkOllamaAvailability();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        openai: openaiStatus,
+        ollama: ollamaStatus,
+        recommendations: {
+          preferred: ollamaStatus.hasVisionModel ? 'ollama' : (openaiStatus.available ? 'openai' : 'none'),
+          fallback: openaiStatus.available && ollamaStatus.hasVisionModel ? 'both' : 'single'
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error checking AI providers status:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   detectFromImage,
   searchIngredients,
@@ -372,5 +474,6 @@ module.exports = {
   getIngredientById,
   getCategories,
   getTotalCount,
-  seedDatabase
+  seedDatabase,
+  getAIProvidersStatus
 };

@@ -52,6 +52,8 @@ services:
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
       SPOONACULAR_API_KEY: ${SPOONACULAR_API_KEY}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_VISION_MODEL: llava:7b
     volumes:
       - ./backend/src:/app/src
       - ./backend/package.json:/app/package.json
@@ -61,6 +63,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - fridgewise-network
     command: npm run dev

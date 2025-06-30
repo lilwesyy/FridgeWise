@@ -6,7 +6,8 @@ const {
   getIngredientById,
   getCategories,
   getTotalCount,
-  seedDatabase
+  seedDatabase,
+  getAIProvidersStatus
 } = require('../controllers/ingredientController');
 const { protect, checkUsageLimit, incrementUsage } = require('../middleware/auth');
 const { validateIngredientDetection } = require('../middleware/validation');
@@ -31,6 +32,11 @@ router.get('/categories',
 router.get('/total-count', 
   ingredientsCacheMiddleware,
   getTotalCount
+);
+
+router.get('/ai-providers-status', 
+  protect, 
+  getAIProvidersStatus
 );
 
 router.post('/seed-dev', 
