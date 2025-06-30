@@ -114,8 +114,11 @@
     "clear": "Pulisci",
     "searchPlaceholder": "Cerca ingredienti...",
     "allCategories": "Tutte le categorie",
-    "suggestions": "Suggerimenti:",
-    "ingredientAdded": "Ingrediente aggiunto con successo!",
+    "suggerimenti": "Suggerimenti:",
+    "noIngredientsDetected": "Nessun ingrediente rilevato nell'immagine.",
+    "ingredientsDetected": "{count} ingredienti rilevati!",
+    "detectionError": "Errore nel riconoscimento degli ingredienti.",
+    "ingredienteAggiunto": "Ingrediente aggiunto con successo!",
     "ingredientRemoved": "Ingrediente rimosso con successo!",
     "ingredientsCleared": "Tutti gli ingredienti rimossi!",
     "footer": "Creato con ❤️ per chi ama il cibo"

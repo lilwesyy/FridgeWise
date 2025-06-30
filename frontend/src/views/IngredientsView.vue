@@ -270,28 +270,40 @@ const clearImage = () => {
 }
 
 const analyzeImage = async () => {
-  if (!selectedImage.value || !canUsePhotos.value) return
+  if (!selectedImage.value || !canUsePhotos.value) return;
   
   try {
-    uploadLoading.value = true
+    uploadLoading.value = true;
     
     // Convert base64 to blob
-    const response = await fetch(selectedImage.value)
-    const blob = await response.blob()
-    const file = new File([blob], 'ingredient-photo.jpg', { type: 'image/jpeg' })
+    const response = await fetch(selectedImage.value);
+    const blob = await response.blob();
+    const file = new File([blob], 'ingredient-photo.jpg', { type: 'image/jpeg' });
     
     // Upload image
-    const uploadResult = await uploadsAPI.uploadImage(file)
+    const uploadResult = await uploadsAPI.uploadImage(file);
     if (uploadResult.success && uploadResult.data) {
       // Detect ingredients
-      await ingredientsStore.detectFromImage(uploadResult.data.imageUrl)
-      authStore.updateUsage('photos')
-      clearImage()
+      const result = await ingredientsStore.detectFromImage(uploadResult.data.imageUrl);
+      authStore.updateUsage('photos');
+      
+      // Check if any ingredients were detected
+      if (result) {
+        const totalDetected = (result.matched?.length || 0) + (result.unknown?.length || 0);
+        if (totalDetected === 0) {
+          error(t('ingredients.noIngredientsDetected') || 'Nessun ingrediente rilevato nell\'immagine', 5000);
+        } else {
+          success(t('ingredients.ingredientsDetected', { count: totalDetected }) || 
+                 `Rilevati ${totalDetected} ingredienti!`, 3000);
+        }
+      }
+      clearImage();
     }
   } catch (err: any) {
-    console.error('Error analyzing image:', err)
+    console.error('Error analyzing image:', err);
+    error(t('ingredients.detectionError') || 'Errore nel riconoscimento ingredienti', 5000);
   } finally {
-    uploadLoading.value = false
+    uploadLoading.value = false;
   }
 }
 

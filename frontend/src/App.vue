@@ -15,8 +15,8 @@
             </span>
           </RouterLink>
 
-          <!-- Hamburger (mobile) -->
-          <button @click="mobileMenuOpen = !mobileMenuOpen" class="sm:hidden focus:outline-none ml-2">
+          <!-- Hamburger (mobile & tablet < 768px) -->
+          <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden focus:outline-none ml-2">
             <svg v-if="!mobileMenuOpen" class="w-7 h-7" :class="alwaysWhiteBrand ? 'text-white' : (isScrolledPastHeader ? 'text-black' : 'text-white')" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -25,8 +25,8 @@
             </svg>
           </button>
 
-          <!-- Navigation Links (desktop) -->
-          <div class="hidden sm:flex items-center space-x-6">
+          <!-- Navigation Links (desktop >= 768px) -->
+          <div class="hidden lg:flex items-center space-x-6">
             <template v-if="isAuthenticated">
               <RouterLink 
                 to="/ingredients" 
@@ -85,7 +85,7 @@
         </div>
         <!-- Mobile Menu -->
         <transition name="fade">
-          <div v-if="mobileMenuOpen" class="sm:hidden mt-3 bg-slate-900/95 rounded-xl shadow-lg p-4 flex flex-col gap-2 border border-white/10 animate-fade-up">
+          <div v-if="mobileMenuOpen" class="lg:hidden mt-3 bg-slate-900/95 rounded-xl shadow-lg p-4 flex flex-col gap-2 border border-white/10 animate-fade-up">
             <RouterLink 
               v-if="!isAuthenticated"
               to="/" 
